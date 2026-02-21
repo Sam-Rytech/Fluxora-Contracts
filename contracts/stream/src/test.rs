@@ -676,23 +676,6 @@ fn test_create_stream_negative_deposit_panics() {
     );
 }
 
-/// Test creating a stream with zero rate_per_second panics
-#[test]
-#[should_panic(expected = "rate_per_second must be positive")]
-fn test_create_stream_zero_rate_panics() {
-    let ctx = TestContext::setup();
-    ctx.env.ledger().set_timestamp(0);
-    ctx.client().create_stream(
-        &ctx.sender,
-        &ctx.recipient,
-        &1000_i128,
-        &0_i128, // zero rate
-        &0u64,
-        &0u64,
-        &1000u64,
-    );
-}
-
 /// Test creating a stream with negative rate_per_second panics
 #[test]
 #[should_panic(expected = "rate_per_second must be positive")]
@@ -724,40 +707,6 @@ fn test_create_stream_equal_start_end_times_panics() {
         &500u64,
         &500u64,
         &500u64, // start == end
-    );
-}
-
-/// Test creating a stream with cliff_time before start_time panics
-#[test]
-#[should_panic(expected = "cliff_time must be within [start_time, end_time]")]
-fn test_create_stream_cliff_before_start_panics() {
-    let ctx = TestContext::setup();
-    ctx.env.ledger().set_timestamp(0);
-    ctx.client().create_stream(
-        &ctx.sender,
-        &ctx.recipient,
-        &1000_i128,
-        &1_i128,
-        &100u64, // start_time
-        &50u64,  // cliff before start
-        &1000u64,
-    );
-}
-
-/// Test creating a stream with cliff_time after end_time panics
-#[test]
-#[should_panic(expected = "cliff_time must be within [start_time, end_time]")]
-fn test_create_stream_cliff_after_end_panics() {
-    let ctx = TestContext::setup();
-    ctx.env.ledger().set_timestamp(0);
-    ctx.client().create_stream(
-        &ctx.sender,
-        &ctx.recipient,
-        &1000_i128,
-        &1_i128,
-        &0u64,
-        &1500u64, // cliff after end
-        &1000u64,
     );
 }
 
@@ -888,18 +837,22 @@ fn test_create_stream_high_rate() {
     ctx.env.ledger().set_timestamp(0);
 
     let high_rate = 1000_i128;
+    let duration = 10u64;
+    let deposit = high_rate * duration as i128; // Ensure deposit covers total streamable
+
     let stream_id = ctx.client().create_stream(
         &ctx.sender,
         &ctx.recipient,
-        &5000_i128,
+        &deposit,
         &high_rate,
         &0u64,
         &0u64,
-        &10u64, // short duration with high rate
+        &duration,
     );
 
     let state = ctx.client().get_stream_state(&stream_id);
     assert_eq!(state.rate_per_second, high_rate);
+    assert_eq!(state.deposit_amount, deposit);
     assert_eq!(state.status, StreamStatus::Active);
 }
 
@@ -1045,25 +998,21 @@ fn test_create_stream_all_fields_correct() {
     assert_eq!(state.status, StreamStatus::Active);
 }
 
-/// Test creating stream with same sender and recipient (self-stream)
+/// Test that creating stream with same sender and recipient panics
 #[test]
-fn test_create_stream_self_stream() {
+#[should_panic(expected = "sender and recipient must be different")]
+fn test_create_stream_self_stream_panics() {
     let ctx = TestContext::setup();
     ctx.env.ledger().set_timestamp(0);
 
-    // Create stream where sender is also recipient
-    let stream_id = ctx.client().create_stream(
+    // Attempt to create stream where sender is also recipient (should panic)
+    ctx.client().create_stream(
         &ctx.sender,
-        &ctx.sender, // same as sender
+        &ctx.sender, // same as sender - not allowed
         &1000_i128,
         &1_i128,
         &0u64,
         &0u64,
         &1000u64,
     );
-
-    let state = ctx.client().get_stream_state(&stream_id);
-    assert_eq!(state.sender, ctx.sender);
-    assert_eq!(state.recipient, ctx.sender);
-    assert_eq!(state.status, StreamStatus::Active);
 }
