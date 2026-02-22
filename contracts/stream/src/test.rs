@@ -21,9 +21,7 @@ struct TestContext<'a> {
     admin: Address,
     sender: Address,
     recipient: Address,
-    admin: Address,
     sac: StellarAssetClient<'a>,
-    admin: Address,
 }
 
 impl<'a> TestContext<'a> {
@@ -59,7 +57,6 @@ impl<'a> TestContext<'a> {
             admin,
             sender,
             recipient,
-            admin,
             sac,
         }
     }
@@ -105,7 +102,6 @@ impl<'a> TestContext<'a> {
             recipient,
             admin,
             sac,
-            admin,
         }
     }
 
