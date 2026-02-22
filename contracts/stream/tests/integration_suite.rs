@@ -312,10 +312,7 @@ fn integration_full_flow_multiple_withdraws_to_completed() {
     assert_eq!(ctx.token.balance(&ctx.sender), 5000);
 
     // Verify total withdrawn equals deposit
-    assert_eq!(
-        withdrawn_1 + withdrawn_2 + withdrawn_3 + withdrawn_4,
-        5000
-    );
+    assert_eq!(withdrawn_1 + withdrawn_2 + withdrawn_3 + withdrawn_4, 5000);
 }
 
 /// Integration test: multiple withdrawals with time advancement beyond end_time.
