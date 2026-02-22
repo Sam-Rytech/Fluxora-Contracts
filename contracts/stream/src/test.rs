@@ -1646,3 +1646,206 @@ fn test_calculate_accrued_exactly_at_cliff() {
         "at cliff, should accrue full amount from start"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Tests — get_stream_state
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_get_stream_state_initial() {
+    let ctx = TestContext::setup();
+    let stream_id = ctx.create_default_stream();
+
+    assert_eq!(stream_id, 0, "first stream id should be 0");
+
+    let state = ctx.client().get_stream_state(&stream_id);
+    assert_eq!(state.stream_id, 0);
+    assert_eq!(state.sender, ctx.sender);
+    assert_eq!(state.recipient, ctx.recipient);
+    assert_eq!(state.deposit_amount, 1000);
+    assert_eq!(state.rate_per_second, 1);
+    assert_eq!(state.start_time, 0);
+    assert_eq!(state.cliff_time, 0);
+    assert_eq!(state.end_time, 1000);
+    assert_eq!(state.withdrawn_amount, 0);
+    assert_eq!(state.status, StreamStatus::Active);
+}
+
+#[test]
+fn test_get_stream_state_create_stream() {
+    let ctx = TestContext::setup();
+    ctx.env.ledger().set_timestamp(0);
+    let stream_id = ctx.client().create_stream(
+        &ctx.sender,
+        &ctx.recipient,
+        &5000_i128,
+        &1_i128,
+        &0u64,
+        &0u64, // cliff equals start
+        &5000u64,
+    );
+
+    let state = ctx.client().get_stream_state(&stream_id);
+    assert_eq!(state.stream_id, 0);
+    assert_eq!(state.sender, ctx.sender);
+    assert_eq!(state.recipient, ctx.recipient);
+    assert_eq!(state.deposit_amount, 5000);
+    assert_eq!(state.rate_per_second, 1);
+    assert_eq!(state.start_time, 0);
+    assert_eq!(state.cliff_time, 0);
+    assert_eq!(state.end_time, 5000);
+    assert_eq!(state.withdrawn_amount, 0);
+    assert_eq!(state.status, StreamStatus::Active);
+}
+
+#[test]
+fn test_get_stream_state_create_stream_withdraw_during_cliff() {
+    let ctx = TestContext::setup();
+    ctx.env.ledger().set_timestamp(0);
+    let stream_id = ctx.client().create_stream(
+        &ctx.sender,
+        &ctx.recipient,
+        &5000_i128,
+        &1_i128,
+        &0u64,
+        &1000u64, // cliff equals start
+        &5000u64,
+    );
+    ctx.env.ledger().set_timestamp(1000);
+    ctx.client().withdraw(&stream_id);
+
+    let state = ctx.client().get_stream_state(&stream_id);
+    assert_eq!(state.stream_id, 0);
+    assert_eq!(state.sender, ctx.sender);
+    assert_eq!(state.recipient, ctx.recipient);
+    assert_eq!(state.deposit_amount, 5000);
+    assert_eq!(state.rate_per_second, 1);
+    assert_eq!(state.start_time, 0);
+    assert_eq!(state.cliff_time, 1000);
+    assert_eq!(state.end_time, 5000);
+    assert_eq!(state.withdrawn_amount, 1000);
+    assert_eq!(state.status, StreamStatus::Active);
+}
+
+#[test]
+fn test_get_stream_state_create_stream_withdraw() {
+    let ctx = TestContext::setup();
+    ctx.env.ledger().set_timestamp(0);
+    let stream_id = ctx.client().create_stream(
+        &ctx.sender,
+        &ctx.recipient,
+        &5000_i128,
+        &1_i128,
+        &0u64,
+        &1000u64, // cliff equals start
+        &5000u64,
+    );
+    ctx.env.ledger().set_timestamp(6000);
+    ctx.client().withdraw(&stream_id);
+
+    let state = ctx.client().get_stream_state(&stream_id);
+    assert_eq!(state.stream_id, 0);
+    assert_eq!(state.sender, ctx.sender);
+    assert_eq!(state.recipient, ctx.recipient);
+    assert_eq!(state.deposit_amount, 5000);
+    assert_eq!(state.rate_per_second, 1);
+    assert_eq!(state.start_time, 0);
+    assert_eq!(state.cliff_time, 1000);
+    assert_eq!(state.end_time, 5000);
+    assert_eq!(state.withdrawn_amount, 5000);
+    assert_eq!(state.status, StreamStatus::Completed);
+}
+
+#[test]
+fn test_get_stream_state_create_stream_cancel() {
+    let ctx = TestContext::setup();
+    ctx.env.ledger().set_timestamp(0);
+    let stream_id = ctx.client().create_stream(
+        &ctx.sender,
+        &ctx.recipient,
+        &5000_i128,
+        &1_i128,
+        &0u64,
+        &1000u64, // cliff equals start
+        &5000u64,
+    );
+    ctx.client().cancel_stream(&stream_id);
+
+    let state = ctx.client().get_stream_state(&stream_id);
+    assert_eq!(state.stream_id, 0);
+    assert_eq!(state.sender, ctx.sender);
+    assert_eq!(state.recipient, ctx.recipient);
+    assert_eq!(state.deposit_amount, 5000);
+    assert_eq!(state.rate_per_second, 1);
+    assert_eq!(state.start_time, 0);
+    assert_eq!(state.cliff_time, 1000);
+    assert_eq!(state.end_time, 5000);
+    assert_eq!(state.withdrawn_amount, 0);
+    assert_eq!(state.status, StreamStatus::Cancelled);
+}
+
+#[test]
+fn test_get_stream_state_pause_stream_cancel() {
+    let ctx = TestContext::setup();
+    ctx.env.ledger().set_timestamp(0);
+    let stream_id = ctx.client().create_stream(
+        &ctx.sender,
+        &ctx.recipient,
+        &5000_i128,
+        &1_i128,
+        &0u64,
+        &1000u64, // cliff equals start
+        &5000u64,
+    );
+    ctx.client().pause_stream(&stream_id);
+
+    let state = ctx.client().get_stream_state(&stream_id);
+    assert_eq!(state.stream_id, 0);
+    assert_eq!(state.sender, ctx.sender);
+    assert_eq!(state.recipient, ctx.recipient);
+    assert_eq!(state.deposit_amount, 5000);
+    assert_eq!(state.rate_per_second, 1);
+    assert_eq!(state.start_time, 0);
+    assert_eq!(state.cliff_time, 1000);
+    assert_eq!(state.end_time, 5000);
+    assert_eq!(state.withdrawn_amount, 0);
+    assert_eq!(state.status, StreamStatus::Paused);
+}
+
+#[test]
+fn test_get_stream_state_pause_resume_stream_cancel() {
+    let ctx = TestContext::setup();
+    ctx.env.ledger().set_timestamp(0);
+    let stream_id = ctx.client().create_stream(
+        &ctx.sender,
+        &ctx.recipient,
+        &5000_i128,
+        &1_i128,
+        &0u64,
+        &1000u64, // cliff equals start
+        &5000u64,
+    );
+    ctx.client().pause_stream(&stream_id);
+
+    ctx.client().resume_stream(&stream_id);
+
+    let state = ctx.client().get_stream_state(&stream_id);
+    assert_eq!(state.stream_id, 0);
+    assert_eq!(state.sender, ctx.sender);
+    assert_eq!(state.recipient, ctx.recipient);
+    assert_eq!(state.deposit_amount, 5000);
+    assert_eq!(state.rate_per_second, 1);
+    assert_eq!(state.start_time, 0);
+    assert_eq!(state.cliff_time, 1000);
+    assert_eq!(state.end_time, 5000);
+    assert_eq!(state.withdrawn_amount, 0);
+    assert_eq!(state.status, StreamStatus::Active);
+}
+
+#[test]
+#[should_panic(expected = "stream not found")]
+fn test_get_stream_state_non_existence_stream() {
+    let ctx = TestContext::setup();
+    ctx.env.ledger().set_timestamp(0);
+    let _ = ctx.client().get_stream_state(&1);
+}
